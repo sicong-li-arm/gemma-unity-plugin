@@ -26,6 +26,8 @@ namespace GemmaCpp
 
         [SerializeField, Tooltip("Name of the weights file")]
         private string weightsFileName = "2.0-2b-it-sfp.sbs";
+        [SerializeField, Tooltip("Model type string")]
+        private string modelFlag = "gemma2-2b-it";
 
         [Header("Generation Settings")]
         [SerializeField, Tooltip("Maximum number of tokens to generate")]
@@ -38,7 +40,7 @@ namespace GemmaCpp
         private float topP = 0.9f;
 
         // Properties
-        public GemmaModelType ModelType => modelType;
+        public string ModelFlag => modelFlag;
         public GemmaWeightFormat WeightFormat => weightFormat;
         public string ModelPath => Path.Combine(Application.streamingAssetsPath, modelFolder);
         public string TokenizerPath => Path.Combine(ModelPath, tokenizerFileName);

@@ -37,12 +37,11 @@ namespace GemmaCpp
             try
             {
                 Debug.Log($"GemmaManager: Initializing with tokenizer: {settings.TokenizerPath}, weights: {settings.WeightsPath}");
-                var modelFlag = GemmaModelUtils.GetFlagsForModelType(settings.ModelType)[0];
-                Debug.Log($"GemmaManager: Using model flag: {modelFlag}, weight format: {settings.WeightFormat}");
+                Debug.Log($"GemmaManager: Using model flag: {settings.ModelFlag}, weight format: {settings.WeightFormat}");
 
                 gemma = new Gemma(
                     settings.TokenizerPath,
-                    modelFlag,
+                    settings.ModelFlag,
                     settings.WeightsPath,
                     settings.WeightFormat.ToString(),
                     8192 // change for gemma3
