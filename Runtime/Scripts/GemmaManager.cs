@@ -9,11 +9,15 @@ namespace GemmaCpp
         [SerializeField]
         public GemmaManagerSettings settings;
 
+        [SerializeField]
+        private bool verboseLogging = false;
+
         private Gemma gemma;
         private bool isInitialized;
 
         private void Start()
         {
+            Debug.Log("GemmaManager: Starting initialization");
             InitializeGemma();
         }
 
@@ -24,7 +28,7 @@ namespace GemmaCpp
                 gemma.Dispose();
                 gemma = null;
                 isInitialized = false;
-                Debug.Log("Gemma resources cleaned up");
+                Debug.Log("GemmaManager: Resources cleaned up");
             }
         }
 
@@ -32,7 +36,10 @@ namespace GemmaCpp
         {
             try
             {
+                Debug.Log($"GemmaManager: Initializing with tokenizer: {settings.TokenizerPath}, weights: {settings.WeightsPath}");
                 var modelFlag = GemmaModelUtils.GetFlagsForModelType(settings.ModelType)[0];
+                Debug.Log($"GemmaManager: Using model flag: {modelFlag}, weight format: {settings.WeightFormat}");
+
                 gemma = new Gemma(
                     settings.TokenizerPath,
                     modelFlag,
@@ -41,11 +48,11 @@ namespace GemmaCpp
                     8192 // change for gemma3
                 );
                 isInitialized = true;
-                Debug.Log("Gemma initialized successfully");
+                Debug.Log("GemmaManager: Initialized successfully");
             }
             catch (Exception e)
             {
-                Debug.LogError($"Error initializing Gemma: {e.Message}");
+                Debug.LogError($"GemmaManager: Error initializing - {e.Message}\n{e.StackTrace}");
             }
         }
 
@@ -53,7 +60,13 @@ namespace GemmaCpp
         {
             if (!isInitialized)
             {
+                Debug.LogError("GemmaManager: Cannot generate response - not initialized");
                 throw new InvalidOperationException("Gemma is not initialized");
+            }
+
+            if (verboseLogging)
+            {
+                Debug.Log($"GemmaManager: Generating response for prompt: \"{TruncateForLogging(prompt)}\"");
             }
 
             // Create a callback that uses UniTask's PlayerLoopTiming to run on main thread
@@ -66,23 +79,48 @@ namespace GemmaCpp
                     UniTask.Post(() =>
                     {
                         result = onTokenReceived(token);
+                        if (verboseLogging)
+                        {
+                            Debug.Log($"GemmaManager: Token received: \"{TruncateForLogging(token)}\"");
+                        }
                     }, PlayerLoopTiming.Update);
                     return true;
                 };
             }
 
             // Run the generation on a background thread
-            return await UniTask.RunOnThreadPool(() =>
+            Debug.Log("GemmaManager: Starting text generation on background thread");
+            try
             {
-                try
+                string result = await UniTask.RunOnThreadPool(() =>
                 {
-                    return gemma.Generate(prompt, wrappedCallback);
-                }
-                catch (Exception e)
+                    try
+                    {
+                        return gemma.Generate(prompt, wrappedCallback);
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.LogError($"GemmaManager: Generation failed - {e.Message}\n{e.StackTrace}");
+                        throw new Exception($"Failed to generate response: {e.Message}", e);
+                    }
+                });
+
+                if (verboseLogging)
                 {
-                    throw new Exception($"Failed to generate response: {e.Message}");
+                    Debug.Log($"GemmaManager: Generation complete, result length: {result.Length} chars");
                 }
-            });
+                else
+                {
+                    Debug.Log("GemmaManager: Text generation complete");
+                }
+
+                return result;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"GemmaManager: Exception during generation - {e.Message}\n{e.StackTrace}");
+                throw;
+            }
         }
 
         /// <summary>
@@ -96,12 +134,20 @@ namespace GemmaCpp
         {
             if (!isInitialized)
             {
+                Debug.LogError("GemmaManager: Cannot generate multimodal response - not initialized");
                 throw new InvalidOperationException("Gemma is not initialized");
             }
 
             if (renderTexture == null)
             {
+                Debug.LogError("GemmaManager: RenderTexture is null");
                 throw new ArgumentNullException(nameof(renderTexture), "RenderTexture cannot be null");
+            }
+
+            Debug.Log($"GemmaManager: Starting multimodal generation with image {renderTexture.width}x{renderTexture.height}");
+            if (verboseLogging)
+            {
+                Debug.Log($"GemmaManager: Multimodal prompt: \"{TruncateForLogging(prompt)}\"");
             }
 
             // Create a callback that uses UniTask's PlayerLoopTiming to run on main thread
@@ -114,26 +160,53 @@ namespace GemmaCpp
                     UniTask.Post(() =>
                     {
                         result = onTokenReceived(token);
+                        if (verboseLogging)
+                        {
+                            Debug.Log($"GemmaManager: Multimodal token received: \"{TruncateForLogging(token)}\"");
+                        }
                     }, PlayerLoopTiming.Update);
                     return true;
                 };
             }
 
-            // Convert RenderTexture to float array on the main thread
-            float[] imageData = await ConvertRenderTextureToFloatArrayAsync(renderTexture);
-
-            // Run the generation on a background thread
-            return await UniTask.RunOnThreadPool(() =>
+            try
             {
-                try
+                // Convert RenderTexture to float array on the main thread
+                Debug.Log("GemmaManager: Converting RenderTexture to float array");
+                float[] imageData = await ConvertRenderTextureToFloatArrayAsync(renderTexture);
+                Debug.Log($"GemmaManager: Converted image to float array, size: {imageData.Length} elements");
+
+                // Run the generation on a background thread
+                Debug.Log("GemmaManager: Starting multimodal generation on background thread");
+                string result = await UniTask.RunOnThreadPool(() =>
                 {
-                    return gemma.GenerateMultimodal(prompt, imageData, renderTexture.width, renderTexture.height, wrappedCallback);
-                }
-                catch (Exception e)
+                    try
+                    {
+                        return gemma.GenerateMultimodal(prompt, imageData, renderTexture.width, renderTexture.height, wrappedCallback);
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.LogError($"GemmaManager: Multimodal generation failed - {e.Message}\n{e.StackTrace}");
+                        throw new Exception($"Failed to generate multimodal response: {e.Message}", e);
+                    }
+                });
+
+                if (verboseLogging)
                 {
-                    throw new Exception($"Failed to generate multimodal response: {e.Message}");
+                    Debug.Log($"GemmaManager: Multimodal generation complete, result length: {result.Length} chars");
                 }
-            });
+                else
+                {
+                    Debug.Log("GemmaManager: Multimodal generation complete");
+                }
+
+                return result;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"GemmaManager: Exception during multimodal generation - {e.Message}\n{e.StackTrace}");
+                throw;
+            }
         }
 
         /// <summary>
@@ -145,12 +218,15 @@ namespace GemmaCpp
         {
             // This needs to run on the main thread because it accesses Unity objects
             await UniTask.SwitchToMainThread();
+            Debug.Log("GemmaManager: Starting RenderTexture conversion on main thread");
 
             int width = renderTexture.width;
             int height = renderTexture.height;
+            Debug.Log($"GemmaManager: Processing image of size {width}x{height}");
 
             // Create a temporary texture to read the pixels
             Texture2D texture = new Texture2D(width, height, TextureFormat.RGB24, false);
+            Debug.Log("GemmaManager: Created temporary Texture2D");
 
             // Remember the current active render texture
             RenderTexture previousActive = RenderTexture.active;
@@ -161,9 +237,11 @@ namespace GemmaCpp
                 RenderTexture.active = renderTexture;
                 texture.ReadPixels(new Rect(0, 0, width, height), 0, 0);
                 texture.Apply();
+                Debug.Log("GemmaManager: Read pixels from RenderTexture");
 
                 // Get the raw pixel data
                 Color32[] pixels = texture.GetPixels32();
+                Debug.Log($"GemmaManager: Got {pixels.Length} pixels from texture");
 
                 // Convert to float array in the format expected by Gemma (RGB values in [0,1])
                 float[] imageData = new float[pixels.Length * 3];
@@ -174,16 +252,48 @@ namespace GemmaCpp
                     imageData[i * 3 + 2] = pixels[i].b / 255.0f; // B
                 }
 
+                if (verboseLogging)
+                {
+                    // Log some sample pixel values to verify conversion
+                    Debug.Log($"GemmaManager: Sample pixel values (first 3 pixels):");
+                    for (int i = 0; i < Math.Min(3, pixels.Length); i++)
+                    {
+                        Debug.Log($"  Pixel {i}: R={imageData[i * 3 + 0]:F2}, G={imageData[i * 3 + 1]:F2}, B={imageData[i * 3 + 2]:F2}");
+                    }
+                }
+
+                Debug.Log($"GemmaManager: Converted to float array with {imageData.Length} elements");
                 return imageData;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"GemmaManager: Error converting RenderTexture - {e.Message}\n{e.StackTrace}");
+                throw;
             }
             finally
             {
                 // Restore the previous active render texture
                 RenderTexture.active = previousActive;
+                Debug.Log("GemmaManager: Restored previous RenderTexture.active");
 
                 // Clean up the temporary texture
                 Destroy(texture);
+                Debug.Log("GemmaManager: Destroyed temporary texture");
             }
+        }
+
+        /// <summary>
+        /// Truncates a string for logging purposes to avoid flooding the console
+        /// </summary>
+        private string TruncateForLogging(string text, int maxLength = 50)
+        {
+            if (string.IsNullOrEmpty(text))
+                return string.Empty;
+
+            if (text.Length <= maxLength)
+                return text;
+
+            return text.Substring(0, maxLength) + "...";
         }
     }
 }

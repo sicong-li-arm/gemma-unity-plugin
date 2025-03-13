@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
+using UnityEngine;
 namespace GemmaCpp
 {
     public class GemmaException : Exception
@@ -98,18 +99,16 @@ namespace GemmaCpp
             }
 
             // optionally: set up logging
-            /*
             GemmaLogCallback logCallback = (message, _) =>
             {
 #if UNITY_ENGINE
-                Debug.Log($"Gemma: {message}");
+                UnityEngine.Debug.Log($"Gemma: {message}");
 #else
-                Debug.WriteLine($"Gemma: {message}");
+                System.Diagnostics.Debug.WriteLine($"Gemma: {message}");
 #endif
             };
             _logCallbackHandle = GCHandle.Alloc(logCallback);
             GemmaSetLogCallback(_context, logCallback, IntPtr.Zero);
-            */
         }
 
         public int CountTokens(string prompt)
