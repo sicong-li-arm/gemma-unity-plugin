@@ -61,6 +61,16 @@ namespace GemmaCpp
             IntPtr userData);
 
         [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
+        private static extern int GemmaGenerateMultimodal(
+            IntPtr context,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string prompt,
+            IntPtr image,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] StringBuilder output,
+            int maxLength,
+            GemmaTokenCallback callback,
+            IntPtr userData);
+
+        [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
         private static extern int GemmaCountTokens(
             IntPtr context,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string text);
@@ -147,6 +157,61 @@ namespace GemmaCpp
             }
             finally
             {
+                if (_callbackHandle.IsAllocated)
+                    _callbackHandle.Free();
+            }
+        }
+
+        public string GenerateMultimodal(string prompt, float[] imageData, int imageWidth, int imageHeight, int maxLength = 4096)
+        {
+            return GenerateMultimodal(prompt, imageData, imageWidth, imageHeight, null, maxLength);
+        }
+
+        public string GenerateMultimodal(string prompt, float[] imageData, int imageWidth, int imageHeight, TokenCallback callback, int maxLength = 4096)
+        {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(Gemma));
+
+            if (_context == IntPtr.Zero)
+                throw new GemmaException("Gemma context is invalid");
+
+            if (imageData == null || imageData.Length == 0)
+                throw new ArgumentException("Image data cannot be null or empty", nameof(imageData));
+
+            if (imageWidth <= 0 || imageHeight <= 0)
+                throw new ArgumentException("Image dimensions must be positive");
+
+            if (imageData.Length < imageWidth * imageHeight * 3)
+                throw new ArgumentException("Image data array is too small for the specified dimensions");
+
+            var output = new StringBuilder(maxLength);
+            GemmaTokenCallback nativeCallback = null;
+
+            if (callback != null)
+            {
+                nativeCallback = (text, _) => callback(text);
+                _callbackHandle = GCHandle.Alloc(nativeCallback);
+            }
+
+            // Pin the image data so it doesn't move during the native call
+            GCHandle imageHandle = GCHandle.Alloc(imageData, GCHandleType.Pinned);
+
+            try
+            {
+                IntPtr imagePtr = imageHandle.AddrOfPinnedObject();
+
+                int length = GemmaGenerateMultimodal(_context, prompt, imagePtr, output, maxLength,
+                    nativeCallback, IntPtr.Zero);
+
+                if (length < 0)
+                    throw new GemmaException("Multimodal generation failed");
+
+                return output.ToString();
+            }
+            finally
+            {
+                imageHandle.Free();
+
                 if (_callbackHandle.IsAllocated)
                     _callbackHandle.Free();
             }
