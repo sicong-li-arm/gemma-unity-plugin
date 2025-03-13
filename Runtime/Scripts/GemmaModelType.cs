@@ -15,7 +15,10 @@ namespace GemmaCpp
         Gemma3_12B,
         Gemma3_27B,
         PaliGemma224,
+        PaliGemma448,
         PaliGemma2_3B_224,
-        PaliGemma2_10B_224
+        PaliGemma2_3B_448,
+        PaliGemma2_10B_224,
+        PaliGemma2_10B_448
     }
 }
