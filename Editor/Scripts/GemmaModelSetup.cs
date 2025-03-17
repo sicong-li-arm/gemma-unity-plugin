@@ -27,9 +27,7 @@ namespace GemmaCpp.Editor
                 Debug.LogWarning(
                     "No Gemma model folders found in StreamingAssets.\n" +
                     "Please download a Gemma model and place it in:\n" +
-                    $"{streamingAssetsPath}/gemma-2b\n" +
-                    "or\n" +
-                    $"{streamingAssetsPath}/gemma-7b"
+                    $"{streamingAssetsPath}/YOUR_MODEL_NAME_HERE"
                 );
                 return;
             }
@@ -48,10 +46,8 @@ namespace GemmaCpp.Editor
 
             // Note: We no longer enforce specific filenames
             // Instead, we check that at least one tokenizer and weight file exists
-            bool hasTokenizer = Directory.GetFiles(modelPath, "*.model").Length > 0;
-            bool hasWeights = Directory.GetFiles(modelPath, "*.gguf").Length > 0 ||
-                             Directory.GetFiles(modelPath, "*.ggml").Length > 0 ||
-                             Directory.GetFiles(modelPath, "*.safetensors").Length > 0;
+            bool hasTokenizer = Directory.GetFiles(modelPath, "*.spm").Length > 0;
+            bool hasWeights = Directory.GetFiles(modelPath, "*.sbs").Length > 0;
 
             if (!hasTokenizer)
             {

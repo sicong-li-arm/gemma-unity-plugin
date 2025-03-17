@@ -1,6 +1,6 @@
 {
     "name": "com.google.gemma.cpp",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "displayName": "Gemma.cpp for Unity",
     "description": "Unity integration for Gemma.cpp",
     "unity": "2022.3",
@@ -14,6 +14,6 @@
     ],
     "author": {
         "name": "Google",
-        "url": "https://github.com/google/gemma-unity-plugin"
+        "url": "https://github.com/google/gemma-cpp-unity-plugin"
     }
 }

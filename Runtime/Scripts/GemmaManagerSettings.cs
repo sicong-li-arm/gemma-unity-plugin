@@ -19,15 +19,15 @@ namespace GemmaCpp
 
         [Header("Model Files")]
         [SerializeField, Tooltip("Folder name in StreamingAssets containing the model files")]
-        private string modelFolder = "gemma-2.0-2b";
+        private string modelFolder = "gemma-3.0-4b";
 
         [SerializeField, Tooltip("Name of the tokenizer file (e.g., tokenizer.model)")]
         private string tokenizerFileName = "tokenizer.spm";
 
         [SerializeField, Tooltip("Name of the weights file")]
-        private string weightsFileName = "2.0-2b-it-sfp.sbs";
+        private string weightsFileName = "4b-it-sfp.sbs";
         [SerializeField, Tooltip("Model type string")]
-        private string modelFlag = "gemma2-2b-it";
+        private string modelFlag = "gemma3-4b";
 
         [Header("Generation Settings")]
         [SerializeField, Tooltip("Maximum number of tokens to generate")]

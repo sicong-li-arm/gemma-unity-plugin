@@ -15,6 +15,8 @@ namespace GemmaCpp
         private Gemma gemma;
         private bool isInitialized;
 
+        private static int MAX_TOKENS = 131072;
+
         private void Start()
         {
             Debug.Log("GemmaManager: Starting initialization");
@@ -44,7 +46,7 @@ namespace GemmaCpp
                     settings.ModelFlag,
                     settings.WeightsPath,
                     settings.WeightFormat.ToString(),
-                    8192 // change for gemma3
+                    MAX_TOKENS // change for gemma3-1b
                 );
                 isInitialized = true;
                 Debug.Log("GemmaManager: Initialized successfully");
@@ -95,7 +97,7 @@ namespace GemmaCpp
                 {
                     try
                     {
-                        return gemma.Generate(prompt, wrappedCallback);
+                        return gemma.Generate(prompt, wrappedCallback, MAX_TOKENS);
                     }
                     catch (Exception e)
                     {
@@ -181,7 +183,7 @@ namespace GemmaCpp
                 {
                     try
                     {
-                        return gemma.GenerateMultimodal(prompt, imageData, renderTexture.width, renderTexture.height, wrappedCallback);
+                        return gemma.GenerateMultimodal(prompt, imageData, renderTexture.width, renderTexture.height, wrappedCallback, MAX_TOKENS);
                     }
                     catch (Exception e)
                     {
