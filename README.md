@@ -2,6 +2,8 @@
 
 This plugin provides C# bindings to the C API developed for Gemma.cpp.
 
+NOTE: Multiturn currently broken in Gemma.cpp!
+
 ## Dependencies
 This plugin depends upon the following Unity Package Manager (UPM) packages.
 
