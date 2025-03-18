@@ -2,7 +2,6 @@ using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
-using UnityEngine;
 namespace GemmaCpp
 {
     public class GemmaException : Exception
@@ -76,6 +75,43 @@ namespace GemmaCpp
             IntPtr context,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string text);
 
+        // Configuration function imports
+        [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void GemmaSetMultiturn(IntPtr context, int value);
+
+        [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void GemmaSetTemperature(IntPtr context, float value);
+
+        [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void GemmaSetTopK(IntPtr context, int value);
+
+        [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void GemmaSetDeterministic(IntPtr context, int value);
+
+        [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void GemmaResetContext(IntPtr context);
+
+        // Context management function imports
+        [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
+        private static extern int GemmaCreateContext(
+            IntPtr context,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string contextName);
+
+        [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
+        private static extern int GemmaSwitchContext(
+            IntPtr context,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string contextName);
+
+        [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
+        private static extern int GemmaDeleteContext(
+            IntPtr context,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string contextName);
+
+        [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
+        private static extern int GemmaHasContext(
+            IntPtr context,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string contextName);
+
         // Native callback delegate type
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate void GemmaLogCallback(
@@ -99,16 +135,119 @@ namespace GemmaCpp
             }
 
             // optionally: set up logging
+            /*
             GemmaLogCallback logCallback = (message, _) =>
             {
 #if UNITY_ENGINE
-                UnityEngine.Debug.Log($"Gemma: {message}");
+                Debug.Log($"Gemma: {message}");
 #else
-                System.Diagnostics.Debug.WriteLine($"Gemma: {message}");
+                Debug.WriteLine($"Gemma: {message}");
 #endif
             };
             _logCallbackHandle = GCHandle.Alloc(logCallback);
             GemmaSetLogCallback(_context, logCallback, IntPtr.Zero);
+            */
+        }
+
+        // Configuration methods
+        public void SetMultiturn(bool enable)
+        {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(Gemma));
+
+            if (_context == IntPtr.Zero)
+                throw new GemmaException("Gemma context is invalid");
+
+            GemmaSetMultiturn(_context, enable ? 1 : 0);
+        }
+
+        public void SetTemperature(float temperature)
+        {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(Gemma));
+
+            if (_context == IntPtr.Zero)
+                throw new GemmaException("Gemma context is invalid");
+
+            GemmaSetTemperature(_context, temperature);
+        }
+
+        public void SetTopK(int topK)
+        {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(Gemma));
+
+            if (_context == IntPtr.Zero)
+                throw new GemmaException("Gemma context is invalid");
+
+            GemmaSetTopK(_context, topK);
+        }
+
+        public void SetDeterministic(bool deterministic)
+        {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(Gemma));
+
+            if (_context == IntPtr.Zero)
+                throw new GemmaException("Gemma context is invalid");
+
+            GemmaSetDeterministic(_context, deterministic ? 1 : 0);
+        }
+
+        public void ResetContext()
+        {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(Gemma));
+
+            if (_context == IntPtr.Zero)
+                throw new GemmaException("Gemma context is invalid");
+
+            GemmaResetContext(_context);
+        }
+
+        // Context management methods
+        public bool CreateContext(string contextName)
+        {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(Gemma));
+
+            if (_context == IntPtr.Zero)
+                throw new GemmaException("Gemma context is invalid");
+
+            return GemmaCreateContext(_context, contextName) != 0;
+        }
+
+        public bool SwitchContext(string contextName)
+        {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(Gemma));
+
+            if (_context == IntPtr.Zero)
+                throw new GemmaException("Gemma context is invalid");
+
+            return GemmaSwitchContext(_context, contextName) != 0;
+        }
+
+        public bool DeleteContext(string contextName)
+        {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(Gemma));
+
+            if (_context == IntPtr.Zero)
+                throw new GemmaException("Gemma context is invalid");
+
+            return GemmaDeleteContext(_context, contextName) != 0;
+        }
+
+        public bool HasContext(string contextName)
+        {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(Gemma));
+
+            if (_context == IntPtr.Zero)
+                throw new GemmaException("Gemma context is invalid");
+
+            return GemmaHasContext(_context, contextName) != 0;
         }
 
         public int CountTokens(string prompt)
