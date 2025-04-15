@@ -308,6 +308,157 @@ namespace GemmaCpp
             }
         }
 
+        #region Conversation Management
+
+        /// <summary>
+        /// Resets the current conversation context in the Gemma model.
+        /// </summary>
+        public void ResetCurrentConversation()
+        {
+            if (!isInitialized)
+            {
+                Debug.LogError("GemmaManager: Cannot reset conversation - not initialized");
+                throw new InvalidOperationException("Gemma is not initialized");
+            }
+
+            try
+            {
+                gemma.ResetConversation(); // Call the method from GemmaInterop
+                Debug.Log("GemmaManager: Current conversation reset requested.");
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"GemmaManager: Error resetting conversation - {e.Message}\n{e.StackTrace}");
+                throw; // Re-throw or handle as appropriate
+            }
+        }
+
+        /// <summary>
+        /// Creates a new named conversation context.
+        /// </summary>
+        /// <param name="conversationName">The unique name for the new conversation.</param>
+        /// <returns>True if the conversation was created successfully, false otherwise.</returns>
+        public bool CreateConversation(string conversationName)
+        {
+            if (!isInitialized)
+            {
+                Debug.LogError("GemmaManager: Cannot create conversation - not initialized");
+                throw new InvalidOperationException("Gemma is not initialized");
+            }
+            if (string.IsNullOrEmpty(conversationName))
+            {
+                Debug.LogError("GemmaManager: Conversation name cannot be null or empty.");
+                return false;
+            }
+
+            try
+            {
+                bool result = gemma.CreateConversation(conversationName);
+                if (verboseLogging) Debug.Log($"GemmaManager: Create conversation '{conversationName}' result: {result}");
+                return result;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"GemmaManager: Error creating conversation '{conversationName}' - {e.Message}\n{e.StackTrace}");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Switches the active conversation context to the specified name.
+        /// </summary>
+        /// <param name="conversationName">The name of the conversation to switch to.</param>
+        /// <returns>True if the switch was successful, false otherwise (e.g., conversation doesn't exist).</returns>
+        public bool SwitchConversation(string conversationName)
+        {
+            if (!isInitialized)
+            {
+                Debug.LogError("GemmaManager: Cannot switch conversation - not initialized");
+                throw new InvalidOperationException("Gemma is not initialized");
+            }
+            if (string.IsNullOrEmpty(conversationName))
+            {
+                Debug.LogError("GemmaManager: Conversation name cannot be null or empty.");
+                return false;
+            }
+
+            try
+            {
+                bool result = gemma.SwitchConversation(conversationName);
+                 if (verboseLogging) Debug.Log($"GemmaManager: Switch to conversation '{conversationName}' result: {result}");
+                return result;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"GemmaManager: Error switching to conversation '{conversationName}' - {e.Message}\n{e.StackTrace}");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Deletes a named conversation context.
+        /// </summary>
+        /// <param name="conversationName">The name of the conversation to delete.</param>
+        /// <returns>True if deletion was successful, false otherwise.</returns>
+        public bool DeleteConversation(string conversationName)
+        {
+            if (!isInitialized)
+            {
+                Debug.LogError("GemmaManager: Cannot delete conversation - not initialized");
+                throw new InvalidOperationException("Gemma is not initialized");
+            }
+             if (string.IsNullOrEmpty(conversationName))
+            {
+                Debug.LogError("GemmaManager: Conversation name cannot be null or empty.");
+                return false;
+            }
+
+            try
+            {
+                bool result = gemma.DeleteConversation(conversationName);
+                 if (verboseLogging) Debug.Log($"GemmaManager: Delete conversation '{conversationName}' result: {result}");
+                return result;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"GemmaManager: Error deleting conversation '{conversationName}' - {e.Message}\n{e.StackTrace}");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Checks if a conversation with the specified name exists.
+        /// </summary>
+        /// <param name="conversationName">The name of the conversation to check.</param>
+        /// <returns>True if the conversation exists, false otherwise.</returns>
+        public bool HasConversation(string conversationName)
+        {
+            if (!isInitialized)
+            {
+                Debug.LogError("GemmaManager: Cannot check conversation - not initialized");
+                throw new InvalidOperationException("Gemma is not initialized");
+            }
+             if (string.IsNullOrEmpty(conversationName))
+            {
+                Debug.LogError("GemmaManager: Conversation name cannot be null or empty.");
+                return false;
+            }
+
+            try
+            {
+                bool result = gemma.HasConversation(conversationName);
+                 if (verboseLogging) Debug.Log($"GemmaManager: Has conversation '{conversationName}' result: {result}");
+                return result;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"GemmaManager: Error checking for conversation '{conversationName}' - {e.Message}\n{e.StackTrace}");
+                throw;
+            }
+        }
+
+        #endregion
+
         /// <summary>
         /// Truncates a string for logging purposes to avoid flooding the console
         /// </summary>
