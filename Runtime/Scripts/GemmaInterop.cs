@@ -55,7 +55,7 @@ namespace GemmaCpp
         private static extern int GemmaGenerate(
             IntPtr context,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string prompt,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] StringBuilder output,
+            [Out] byte[] output,
             int maxLength,
             GemmaTokenCallback callback,
             IntPtr userData);
@@ -64,8 +64,10 @@ namespace GemmaCpp
         private static extern int GemmaGenerateMultimodal(
             IntPtr context,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string prompt,
-            IntPtr image,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] StringBuilder output,
+            IntPtr image_data, // Renamed param to match C API
+            int image_width,   // Added dimension
+            int image_height,  // Added dimension
+            [MarshalAs(UnmanagedType.LPUTF8Str)] StringBuilder output, // Output should be StringBuilder for multimodal
             int maxLength,
             GemmaTokenCallback callback,
             IntPtr userData);
@@ -88,29 +90,29 @@ namespace GemmaCpp
         [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
         private static extern void GemmaSetDeterministic(IntPtr context, int value);
 
-        [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
-        private static extern void GemmaResetContext(IntPtr context);
+        [DllImport("gemma", CallingConvention = CallingConvention.Cdecl, EntryPoint = "GemmaResetConversation")]
+        private static extern void GemmaResetConversation(IntPtr context);
 
-        // Context management function imports
-        [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
-        private static extern int GemmaCreateContext(
+        // Conversation management function imports
+        [DllImport("gemma", CallingConvention = CallingConvention.Cdecl, EntryPoint = "GemmaCreateConversation")]
+        private static extern int GemmaCreateConversation(
             IntPtr context,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string contextName);
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string conversationName);
 
-        [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
-        private static extern int GemmaSwitchContext(
+        [DllImport("gemma", CallingConvention = CallingConvention.Cdecl, EntryPoint = "GemmaSwitchConversation")]
+        private static extern int GemmaSwitchConversation(
             IntPtr context,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string contextName);
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string conversationName);
 
-        [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
-        private static extern int GemmaDeleteContext(
+        [DllImport("gemma", CallingConvention = CallingConvention.Cdecl, EntryPoint = "GemmaDeleteConversation")]
+        private static extern int GemmaDeleteConversation(
             IntPtr context,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string contextName);
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string conversationName);
 
-        [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
-        private static extern int GemmaHasContext(
+        [DllImport("gemma", CallingConvention = CallingConvention.Cdecl, EntryPoint = "GemmaHasConversation")]
+        private static extern int GemmaHasConversation(
             IntPtr context,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string contextName);
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string conversationName);
 
         // Native callback delegate type
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -125,6 +127,7 @@ namespace GemmaCpp
             IntPtr userData);
 
         private GCHandle _logCallbackHandle;
+        private bool _loggingEnabled = false;
 
         public Gemma(string tokenizerPath, string modelType, string weightsPath, string weightType, int maxLength = 8192)
         {
@@ -133,20 +136,28 @@ namespace GemmaCpp
             {
                 throw new GemmaException("Failed to create Gemma context");
             }
+        }
 
-            // optionally: set up logging
-            /*
-            GemmaLogCallback logCallback = (message, _) =>
+        // Enable debug logging
+        public void EnableLogging(bool enable = true)
+        {
+            if (enable && !_loggingEnabled)
             {
-#if UNITY_ENGINE
-                Debug.Log($"Gemma: {message}");
-#else
-                Debug.WriteLine($"Gemma: {message}");
-#endif
-            };
-            _logCallbackHandle = GCHandle.Alloc(logCallback);
-            GemmaSetLogCallback(_context, logCallback, IntPtr.Zero);
-            */
+                GemmaLogCallback logCallback = (message, _) =>
+                {
+                    Debug.WriteLine($"Gemma: {message}");
+                };
+                _logCallbackHandle = GCHandle.Alloc(logCallback);
+                GemmaSetLogCallback(_context, logCallback, IntPtr.Zero);
+                _loggingEnabled = true;
+            }
+            else if (!enable && _loggingEnabled)
+            {
+                if (_logCallbackHandle.IsAllocated)
+                    _logCallbackHandle.Free();
+                GemmaSetLogCallback(_context, null, IntPtr.Zero);
+                _loggingEnabled = false;
+            }
         }
 
         // Configuration methods
@@ -159,6 +170,7 @@ namespace GemmaCpp
                 throw new GemmaException("Gemma context is invalid");
 
             GemmaSetMultiturn(_context, enable ? 1 : 0);
+            Debug.WriteLine($"Gemma: Set multiturn to {(enable ? "enabled" : "disabled")}");
         }
 
         public void SetTemperature(float temperature)
@@ -170,6 +182,7 @@ namespace GemmaCpp
                 throw new GemmaException("Gemma context is invalid");
 
             GemmaSetTemperature(_context, temperature);
+            Debug.WriteLine($"Gemma: Set temperature to {temperature}");
         }
 
         public void SetTopK(int topK)
@@ -181,6 +194,7 @@ namespace GemmaCpp
                 throw new GemmaException("Gemma context is invalid");
 
             GemmaSetTopK(_context, topK);
+            Debug.WriteLine($"Gemma: Set topK to {topK}");
         }
 
         public void SetDeterministic(bool deterministic)
@@ -192,9 +206,11 @@ namespace GemmaCpp
                 throw new GemmaException("Gemma context is invalid");
 
             GemmaSetDeterministic(_context, deterministic ? 1 : 0);
+            Debug.WriteLine($"Gemma: Set deterministic to {(deterministic ? "true" : "false")}");
         }
 
-        public void ResetContext()
+        // Renamed public method
+        public void ResetConversation()
         {
             if (_disposed)
                 throw new ObjectDisposedException(nameof(Gemma));
@@ -202,11 +218,12 @@ namespace GemmaCpp
             if (_context == IntPtr.Zero)
                 throw new GemmaException("Gemma context is invalid");
 
-            GemmaResetContext(_context);
+            GemmaResetConversation(_context); // Call P/Invoke method
+            Debug.WriteLine("Gemma: Reset active conversation");
         }
 
-        // Context management methods
-        public bool CreateContext(string contextName)
+        // Conversation management methods
+        public bool CreateConversation(string conversationName)
         {
             if (_disposed)
                 throw new ObjectDisposedException(nameof(Gemma));
@@ -214,10 +231,12 @@ namespace GemmaCpp
             if (_context == IntPtr.Zero)
                 throw new GemmaException("Gemma context is invalid");
 
-            return GemmaCreateContext(_context, contextName) != 0;
+            bool result = GemmaCreateConversation(_context, conversationName) != 0; // Call P/Invoke method
+            Debug.WriteLine($"Gemma: Create conversation '{conversationName}' - {(result ? "succeeded" : "failed")}");
+            return result;
         }
 
-        public bool SwitchContext(string contextName)
+        public bool SwitchConversation(string conversationName)
         {
             if (_disposed)
                 throw new ObjectDisposedException(nameof(Gemma));
@@ -225,10 +244,12 @@ namespace GemmaCpp
             if (_context == IntPtr.Zero)
                 throw new GemmaException("Gemma context is invalid");
 
-            return GemmaSwitchContext(_context, contextName) != 0;
+            bool result = GemmaSwitchConversation(_context, conversationName) != 0; // Call P/Invoke method
+            Debug.WriteLine($"Gemma: Switch to conversation '{conversationName}' - {(result ? "succeeded" : "failed")}");
+            return result;
         }
 
-        public bool DeleteContext(string contextName)
+        public bool DeleteConversation(string conversationName)
         {
             if (_disposed)
                 throw new ObjectDisposedException(nameof(Gemma));
@@ -236,10 +257,12 @@ namespace GemmaCpp
             if (_context == IntPtr.Zero)
                 throw new GemmaException("Gemma context is invalid");
 
-            return GemmaDeleteContext(_context, contextName) != 0;
+            bool result = GemmaDeleteConversation(_context, conversationName) != 0; // Call P/Invoke method
+            Debug.WriteLine($"Gemma: Delete conversation '{conversationName}' - {(result ? "succeeded" : "failed")}");
+            return result;
         }
 
-        public bool HasContext(string contextName)
+        public bool HasConversation(string conversationName)
         {
             if (_disposed)
                 throw new ObjectDisposedException(nameof(Gemma));
@@ -247,7 +270,9 @@ namespace GemmaCpp
             if (_context == IntPtr.Zero)
                 throw new GemmaException("Gemma context is invalid");
 
-            return GemmaHasContext(_context, contextName) != 0;
+            bool result = GemmaHasConversation(_context, conversationName) != 0; // Call P/Invoke method
+            Debug.WriteLine($"Gemma: Has conversation '{conversationName}' - {result}");
+            return result;
         }
 
         public int CountTokens(string prompt)
@@ -274,24 +299,39 @@ namespace GemmaCpp
             if (_context == IntPtr.Zero)
                 throw new GemmaException("Gemma context is invalid");
 
-            var output = new StringBuilder(maxLength);
+            var outputBuffer = new byte[maxLength * 4];  // Allow for worst case UTF-8 size
             GemmaTokenCallback nativeCallback = null;
+
+            // Track token count for debugging
+            int tokenCount = 0;
 
             if (callback != null)
             {
-                nativeCallback = (text, _) => callback(text);
+                nativeCallback = (text, _) =>
+                {
+                    tokenCount++;
+                    // Log token for debugging
+                    Debug.WriteLine($"Token {tokenCount}: '{text}'");
+
+                    // Pass token to user callback
+                    return callback(text);
+                };
                 _callbackHandle = GCHandle.Alloc(nativeCallback);
             }
 
             try
             {
-                int length = GemmaGenerate(_context, prompt, output, maxLength,
+                int length = GemmaGenerate(_context, prompt, outputBuffer, maxLength,
                     nativeCallback, IntPtr.Zero);
 
                 if (length < 0)
                     throw new GemmaException("Generation failed");
 
-                return output.ToString();
+                Debug.WriteLine($"Generation complete: {tokenCount} tokens processed, result length: {length}");
+
+                // Convert the byte buffer to a string using UTF-8 encoding
+                string result = Encoding.UTF8.GetString(outputBuffer, 0, length);
+                return result;
             }
             finally
             {
@@ -302,6 +342,7 @@ namespace GemmaCpp
 
         public string GenerateMultimodal(string prompt, float[] imageData, int imageWidth, int imageHeight, int maxLength = 4096)
         {
+            // Pass width and height to the overloaded method
             return GenerateMultimodal(prompt, imageData, imageWidth, imageHeight, null, maxLength);
         }
 
@@ -338,7 +379,8 @@ namespace GemmaCpp
             {
                 IntPtr imagePtr = imageHandle.AddrOfPinnedObject();
 
-                int length = GemmaGenerateMultimodal(_context, prompt, imagePtr, output, maxLength,
+                // Pass image dimensions to the native call
+                int length = GemmaGenerateMultimodal(_context, prompt, imagePtr, imageWidth, imageHeight, output, maxLength,
                     nativeCallback, IntPtr.Zero);
 
                 if (length < 0)
