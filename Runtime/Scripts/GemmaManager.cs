@@ -49,6 +49,31 @@ namespace GemmaCpp
                     MAX_TOKENS // change for gemma3-1b
                 );
                 isInitialized = true;
+
+                // Apply settings and logging after successful initialization
+                if (isInitialized)
+                {
+                    try
+                    {
+                        gemma.SetTemperature(settings.Temperature);
+                        gemma.EnableLogging(verboseLogging); // Use verboseLogging flag to control native logs
+
+                        if (verboseLogging)
+                        {
+                            Debug.Log($"GemmaManager: Applied settings - Temperature: {settings.Temperature}, Native Logging: Enabled");
+                        }
+                        else
+                        {
+                            Debug.Log($"GemmaManager: Applied settings - Temperature: {settings.Temperature}");
+                        }
+                    }
+                    catch (Exception settingsEx)
+                    {
+                        Debug.LogWarning($"GemmaManager: Failed to apply some settings - {settingsEx.Message}");
+                        // Continue initialization even if settings fail to apply
+                    }
+                }
+
                 Debug.Log("GemmaManager: Initialized successfully");
             }
             catch (Exception e)
