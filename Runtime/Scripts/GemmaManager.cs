@@ -55,16 +55,20 @@ namespace GemmaCpp
                 {
                     try
                     {
+                        // Enable Multiturn mode by default for Manager usage
+                        gemma.SetMultiturn(true);
+                        Debug.Log("GemmaManager: Multiturn mode enabled by default.");
+
                         gemma.SetTemperature(settings.Temperature);
                         gemma.EnableLogging(verboseLogging); // Use verboseLogging flag to control native logs
 
                         if (verboseLogging)
                         {
-                            Debug.Log($"GemmaManager: Applied settings - Temperature: {settings.Temperature}, Native Logging: Enabled");
+                            Debug.Log($"GemmaManager: Applied settings - Multiturn: Enabled, Temperature: {settings.Temperature}, Native Logging: Enabled");
                         }
                         else
                         {
-                            Debug.Log($"GemmaManager: Applied settings - Temperature: {settings.Temperature}");
+                            Debug.Log($"GemmaManager: Applied settings - Multiturn: Enabled, Temperature: {settings.Temperature}");
                         }
                     }
                     catch (Exception settingsEx)
