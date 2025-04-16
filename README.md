@@ -2,6 +2,8 @@
 
 This plugin provides C# bindings and a high-level Unity integration for the [Gemma.cpp](https://github.com/google/gemma.cpp) library, allowing you to run Google's Gemma models directly within your Unity projects.
 
+This is not an officially supported Google product.
+
 ## Dependencies
 
 This plugin depends upon the following Unity Package Manager (UPM) package:
