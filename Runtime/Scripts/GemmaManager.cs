@@ -30,8 +30,6 @@ namespace GemmaCpp
         private Gemma gemma;
         private bool isInitialized;
 
-        private static int MAX_TOKENS = 131072;
-
         private void Start()
         {
             Debug.Log("GemmaManager: Starting initialization");
@@ -55,15 +53,18 @@ namespace GemmaCpp
             {
                 Debug.Log($"GemmaManager: Initializing with tokenizer: {settings.TokenizerPath}, weights: {settings.WeightsPath}");
                 Debug.Log($"GemmaManager: Using model flag: {settings.ModelFlag}, weight format: {settings.WeightFormat}");
+                Debug.Log($"GemmaManager: Using max tokens: {settings.MaxGeneratedTokens}");
 
                 gemma = new Gemma(
                     settings.TokenizerPath,
                     settings.ModelFlag,
                     settings.WeightsPath,
                     settings.WeightFormat.ToString(),
-                    MAX_TOKENS // change for gemma3-1b
+                    settings.MaxGeneratedTokens
                 );
                 isInitialized = true;
+
+                verboseLogging = true;
 
                 // Apply settings and logging after successful initialization
                 if (isInitialized)
@@ -124,10 +125,12 @@ namespace GemmaCpp
                     UniTask.Post(() =>
                     {
                         result = onTokenReceived(token);
+                        /*
                         if (verboseLogging)
                         {
                             Debug.Log($"GemmaManager: Token received: \"{TruncateForLogging(token)}\"");
                         }
+                        */
                     }, PlayerLoopTiming.Update);
                     return true;
                 };
@@ -141,7 +144,8 @@ namespace GemmaCpp
                 {
                     try
                     {
-                        return gemma.Generate(prompt, wrappedCallback, MAX_TOKENS);
+                        Debug.Log(prompt);
+                        return gemma.Generate(prompt, wrappedCallback, settings.MaxGeneratedTokens);
                     }
                     catch (Exception e)
                     {
@@ -227,7 +231,7 @@ namespace GemmaCpp
                 {
                     try
                     {
-                        return gemma.GenerateMultimodal(prompt, imageData, renderTexture.width, renderTexture.height, wrappedCallback, MAX_TOKENS);
+                        return gemma.GenerateMultimodal(prompt, imageData, renderTexture.width, renderTexture.height, wrappedCallback, settings.MaxGeneratedTokens);
                     }
                     catch (Exception e)
                     {
@@ -328,6 +332,14 @@ namespace GemmaCpp
         }
 
         #region Conversation Management
+
+        /// <summary>
+        /// Enables / disables multiturn.
+        /// </summary>
+        public void SetMultiturn(bool enable)
+        {
+            gemma.SetMultiturn(enable);
+        }
 
         /// <summary>
         /// Resets the current conversation context in the Gemma model.

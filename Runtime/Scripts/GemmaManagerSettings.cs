@@ -45,8 +45,8 @@ namespace GemmaCpp
         private string modelFlag = "gemma3-4b";
 
         [Header("Generation Settings")]
-        [SerializeField, Tooltip("Maximum number of tokens to generate")]
-        private int maxTokens = 256;
+        [SerializeField, Tooltip("Maximum number of tokens to generate per turn")]
+        private int maxGeneratedTokens = 384;
 
         [SerializeField, Range(0f, 1f), Tooltip("Temperature for text generation (higher = more random)")]
         private float temperature = 0.7f;
@@ -60,7 +60,7 @@ namespace GemmaCpp
         public string ModelPath => Path.Combine(Application.streamingAssetsPath, modelFolder);
         public string TokenizerPath => Path.Combine(ModelPath, tokenizerFileName);
         public string WeightsPath => Path.Combine(ModelPath, weightsFileName);
-        public int MaxTokens => maxTokens;
+        public int MaxGeneratedTokens => maxGeneratedTokens;
         public float Temperature => temperature;
         public float TopP => topP;
 
@@ -88,7 +88,7 @@ namespace GemmaCpp
             }
 #endif
 
-            maxTokens = Mathf.Max(1, maxTokens);
+            maxGeneratedTokens = Mathf.Max(1, maxGeneratedTokens);
             temperature = Mathf.Clamp(temperature, 0f, 1f);
             topP = Mathf.Clamp(topP, 0f, 1f);
         }

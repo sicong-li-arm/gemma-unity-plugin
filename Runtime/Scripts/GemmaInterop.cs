@@ -129,6 +129,10 @@ namespace GemmaCpp
             IntPtr context,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string conversationName);
 
+        [DllImport("gemma", CallingConvention = CallingConvention.Cdecl, EntryPoint = "GemmaGetCurrentConversation")]
+        [return: MarshalAs(UnmanagedType.LPUTF8Str)] // Marshal the const char* return value as a string
+        private static extern string GemmaGetCurrentConversation(IntPtr context);
+
         // Native callback delegate type
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate void GemmaLogCallback(
@@ -288,6 +292,33 @@ namespace GemmaCpp
             bool result = GemmaHasConversation(_context, conversationName) != 0; // Call P/Invoke method
             Debug.WriteLine($"Gemma: Has conversation '{conversationName}' - {result}");
             return result;
+        }
+
+        /// <summary>
+        /// Gets the current conversation history as a string.
+        /// </summary>
+        /// <returns>The conversation history, or null if an error occurs.</returns>
+        public string GetCurrentConversation()
+        {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(Gemma));
+
+            if (_context == IntPtr.Zero)
+                throw new GemmaException("Gemma context is invalid");
+
+            try
+            {
+                string conversation = GemmaGetCurrentConversation(_context); // Call the private static P/Invoke method
+                Debug.WriteLine($"Gemma: Retrieved current conversation (length: {conversation?.Length ?? 0})");
+                return conversation;
+            }
+            catch (Exception e)
+            {
+                // Log the error appropriately
+                Debug.WriteLine($"Gemma: Error retrieving current conversation - {e.Message}");
+                // Depending on desired behavior, you might return null, empty string, or re-throw
+                return null;
+            }
         }
 
         public int CountTokens(string prompt)
