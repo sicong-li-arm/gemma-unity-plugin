@@ -62,6 +62,7 @@ namespace GemmaCpp
                     settings.WeightFormat.ToString(),
                     settings.MaxGeneratedTokens
                 );
+                gemma.EnableLogging(verboseLogging);
                 isInitialized = true;
 
                 verboseLogging = true;
@@ -76,7 +77,6 @@ namespace GemmaCpp
                         Debug.Log("GemmaManager: Multiturn mode enabled by default.");
 
                         gemma.SetTemperature(settings.Temperature);
-                        gemma.EnableLogging(verboseLogging); // Use verboseLogging flag to control native logs
 
                         if (verboseLogging)
                         {
