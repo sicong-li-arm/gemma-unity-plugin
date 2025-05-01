@@ -15,6 +15,8 @@
 
 using UnityEngine;
 using System;
+using System.Collections.Generic; // Added for Dictionary
+using System.Text;             // Added for StringBuilder
 using Cysharp.Threading.Tasks;
 
 namespace GemmaCpp
@@ -100,6 +102,78 @@ namespace GemmaCpp
             {
                 Debug.LogError($"GemmaManager: Error initializing - {e.Message}\n{e.StackTrace}");
             }
+        }
+
+        public async UniTask Prewarm(Dictionary<string, string> conversations)
+        {
+            // Using Time.time for elapsed game time, formatted to 3 decimal places (F3)
+            string timestamp = $"[{Time.time:F3}]";
+            Debug.Log($"GemmaManager::Prewarm(): {timestamp} Prewarm sequence started. Waiting for GemmaManager initialization...");
+
+            var extant = GetCurrentConversation();
+
+            while (!isInitialized)
+            {
+                timestamp = $"[{Time.time:F3}]";
+                Debug.Log($"GemmaManager::Prewarm(): {timestamp} Waiting for GemmaManager to initialize...");
+                await UniTask.Delay(TimeSpan.FromSeconds(1)); // Wait 1 second
+            }
+
+            timestamp = $"[{Time.time:F3}]";
+            Debug.Log($"GemmaManager::Prewarm(): {timestamp} GemmaManager initialized. Starting conversation prewarming.");
+
+            int count = 0;
+            foreach (var kvp in conversations)
+            {
+                string conversationName = kvp.Key;
+                string initialPrompt = kvp.Value; // Use the value from the dictionary as the prompt
+
+                timestamp = $"[{Time.time:F3}]";
+                if (string.IsNullOrEmpty(conversationName))
+                {
+                    Debug.LogWarning($"GemmaManager::Prewarm(): {timestamp} Skipping conversation at index {count} due to missing conversation name.");
+                    count++;
+                    continue;
+                }
+
+                // Use 'this' to access GemmaManager methods
+                if (!this.HasConversation(conversationName))
+                {
+                    Debug.Log($"GemmaManager::Prewarm(): {timestamp} Prewarming conversation: {conversationName}");
+                    try
+                    {
+                        this.CreateConversation(conversationName);
+                        Debug.Log($"GemmaManager::Prewarm(): {timestamp} Successfully created conversation: {conversationName}");
+
+                        // Switch to the new conversation and generate initial response
+                        this.SwitchConversation(conversationName);
+                        if (!string.IsNullOrEmpty(initialPrompt))
+                        {
+                             Debug.Log($"GemmaManager::Prewarm(): {timestamp} Generating initial response for {conversationName}...");
+                            await this.GenerateResponseAsync(initialPrompt);
+                             Debug.Log($"GemmaManager::Prewarm(): {timestamp} Initial response generated for {conversationName}.");
+                        }
+                        else
+                        {
+                             Debug.Log($"GemmaManager::Prewarm(): {timestamp} No initial prompt provided for {conversationName}, skipping generation.");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogError($"GemmaManager::Prewarm(): {timestamp} Failed to create or prewarm conversation {conversationName}: {ex.Message}");
+                    }
+                }
+                else
+                {
+                    Debug.Log($"GemmaManager::Prewarm(): {timestamp} Conversation already exists: {conversationName}");
+                }
+                count++;
+            }
+
+            timestamp = $"[{Time.time:F3}]";
+            Debug.Log($"GemmaManager::Prewarm(): {timestamp} Prewarm finished processing {count} conversations.");
+
+            SwitchConversation(extant);
         }
 
         public async UniTask<string> GenerateResponseAsync(string prompt, Gemma.TokenCallback onTokenReceived = null)
@@ -485,6 +559,31 @@ namespace GemmaCpp
             {
                 Debug.LogError($"GemmaManager: Error checking for conversation '{conversationName}' - {e.Message}\n{e.StackTrace}");
                 throw;
+            }
+        }
+
+        /// <summary>
+        /// Gets the name of the currently active conversation.
+        /// </summary>
+        /// <returns>The name of the active conversation, or null/empty if none is active or an error occurs.</returns>
+        public string GetCurrentConversation()
+        {
+            if (!isInitialized)
+            {
+                Debug.LogError("GemmaManager: Cannot get current conversation - not initialized");
+                throw new InvalidOperationException("Gemma is not initialized");
+            }
+
+            try
+            {
+                string conversationName = gemma.GetCurrentConversation(); // Assuming GemmaInterop.Gemma has this method
+                if (verboseLogging) Debug.Log($"GemmaManager: Current conversation is '{conversationName}'");
+                return conversationName;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"GemmaManager: Error getting current conversation - {e.Message}\n{e.StackTrace}");
+                throw; // Re-throw or handle as appropriate
             }
         }
 

@@ -89,6 +89,8 @@ if (!conversation_existed) {
 
 As Gemma is set up to operate in multiturn mode, when talking to the model the user should only send `the current user input` as the prompt (e.g., `"Can you tell me about the Rune of Binding?"`). It is not necessary to prepend the conversation history; the model automatically uses the history stored within the active conversation context's KV cache.
 
+It may be useful to perform prewarming well in advance of interacting with an NPC. We provide the `Prewarm()` method that takes a `Dictionary<string, string>` object as a parameter for this purpose.
+
 ### `GemmaManager`, a Unity `MonoBehaviour` that wraps `Gemma`
 
 `GemmaManager` is a convenience `MonoBehaviour` class that provides a high-level interface for interacting with Gemma within Unity.
@@ -105,6 +107,10 @@ The `GemmaManager` MonoBehaviour provides a high-level interface for interacting
 *   **Verbose Logging:** Enable detailed logging from both the C# wrapper and the underlying native library.
 
 **Methods**
+*   **`async UniTask Prewarm(Dictionary<string, string> conversations)`**
+    *   Asynchronously prewarms specified conversation contexts before they are actively used.
+    *   `conversations`: A dictionary where keys represent the unique names of the conversations to prewarm, and values represent the initial prompt to send to each respective conversation.
+    *   For each entry, it ensures the conversation exists (creates if not), switches to it, and generates an initial response using the provided prompt. This helps reduce latency on the first interaction.
 
 *   **`async UniTask<string> GenerateResponseAsync(string prompt, Gemma.TokenCallback onTokenReceived = null)`**
     *   Generates a text response based on the input `prompt`.
@@ -133,6 +139,10 @@ The `GemmaManager` MonoBehaviour provides a high-level interface for interacting
 
 *   **`bool HasConversation(string conversationName)`**
     *   Checks if a conversation with the given name exists. Returns `true` if it exists.
+
+*   **`string GetCurrentConversation()`**
+    *   Gets the name of the currently active conversation context.
+    *   Returns the name as a string. Returns null or empty if no conversation is active or an error occurs.
 
 ### `GemmaManagerSettings`
 
