@@ -101,10 +101,14 @@ This class provides direct C# bindings to the native `gemma.dll` functions. It's
 
 **Methods**
 
-*   **`string Generate(string prompt, TokenCallback callback = null, int maxLength = 4096)`**
-    *   Generates text. The `TokenCallback` (if provided) is executed directly on the generation thread.
-*   **`string GenerateMultimodal(string prompt, float[] imageData, int imageWidth, int imageHeight, TokenCallback callback = null, int maxLength = 4096)`**
-    *   Generates text with image input. `imageData` must be a flat array of RGB float values (0.0-1.0). The `TokenCallback` (if provided) is executed directly on the generation thread.
+*   **`string Generate(string prompt, int maxLength = 4096)`**
+    *   Generates text based on the input `prompt`, to a maximum length of `maxLength`.
+*   **`string Generate(string prompt, TokenCallback callback, int maxLength = 4096)`**
+    *   Generates text based on the input `prompt`, to a maximum length of `maxLength`. The `TokenCallback` (if provided) is executed directly on the generation thread. Return `true` to continue, `false` to stop.
+*   **`string GenerateMultimodal(string prompt, float[] imageData, int imageWidth, int imageHeight, int maxLength = 4096)`**
+    *   Generates text based on a text input `prompt`, with an image input as well, to a maximum length of `maxLength`. `imageData` must be a flat array of RGB float values (0.0-1.0).
+*   **`string GenerateMultimodal(string prompt, float[] imageData, int imageWidth, int imageHeight, TokenCallback callback, int maxLength = 4096)`**
+    *   Generates text with image input. The `TokenCallback` (if provided) is executed directly on the generation thread. Return `true` to continue, `false` to stop.
 *   **`int CountTokens(string text)`**
     *   Counts the number of tokens in the given text according to the loaded tokenizer.
 *   **`void SetMultiturn(bool enable)`**
@@ -125,6 +129,8 @@ This class provides direct C# bindings to the native `gemma.dll` functions. It's
     *   Deletes a named conversation context.
 *   **`bool HasConversation(string conversationName)`**
     *   Checks if a named conversation exists.
+*   **`string GetCurrentConversation()`**
+    *   Gets the history of the currently active conversation context as a string. Returns `null` on error.
 *   **`void EnableLogging(bool enable = true)`**
     *   Enables or disables log messages from the native library via a callback to `Debug.WriteLine`.
 *   **`void Dispose()`**
