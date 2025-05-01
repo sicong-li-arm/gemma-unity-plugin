@@ -11,7 +11,7 @@ This plugin depends upon the following Unity Package Manager (UPM) package:
 -   **UniTask** >= 2.5.10 ([link](https://github.com/Cysharp/UniTask.git))\
     This is used by `GemmaManager` to handle asynchronous operations and ensure callbacks (like `onTokenReceived`) can safely interact with the Unity API from background threads.
 
-Note that if you add this package to your project using UPM, Unity should automatically fetch UniTask for you.
+Note that if this package is added to a Unity project using UPM, Unity should automatically fetch UniTask based on the dependency information.
 
 ## Setup & Usage
 
@@ -23,19 +23,77 @@ Note that if you add this package to your project using UPM, Unity should automa
 
 ## Recommended Usage Patterns
 
+### Setting up a `Gemma` instance
+A `Gemma` instance is created by passing in the information that would ordinarily be passed to **Gemma.cpp** on the command line.
+
+```csharp
+Gemma gemma = new Gemma(
+    "tokenizer.spm",    // tokenizer path
+    "gemma3-4b",        // model flag
+    "4b-it-sfp.sbs",    // weights file path
+    "sfp",              // weights format, usually "sfp"
+    384                 // maximum number of tokens generated per turn
+);
+gemma.SetMultiturn(true);
+gemma.SetTemperature(1.0f);
+gemma.EnableLogging(true);
+```
+
 ### Managing Multiple NPC Conversations
 
-**Note:** This pattern relies on multiturn conversation history. `GemmaManager` automatically enables multiturn mode during initialization.
+**Note:** This pattern relies on multiturn conversation history. Ensure that `gemma.SetMultiturn(true)` has been called.
 
-A recommended pattern for managing conversations with multiple Non-Player Characters (NPCs) is to use Gemma's conversation context feature:
+Managing conversations with multiple Non-Player Characters (NPCs) can be achieved by using Gemma.cpp's **conversation context** feature.
 
-1.  **Create Context per NPC:** In order to interact with an NPC, create a unique conversation context for them using `GemmaManager.CreateConversation("NPC_UniqueID")`, where `"NPC_UniqueID"` is a distinct identifier for that character (e.g., their name or instance ID).
-2.  **Switch Context:** Before generating a response for a specific NPC, switch to their context using `GemmaManager.SwitchConversation("NPC_UniqueID")`.
-3.  **Pre-warm with System-like Prompt:** *Before* the player's first interaction with the NPC, send an initial `GenerateResponseAsync` call. The prompt for this call should contain the NPC's persona, role, and any relevant background information (e.g., `"You are Elara, a wise old elf living in the Whispering Woods. You are knowledgeable about ancient runes but wary of strangers."`). This initial call pre-warms the model's KV cache with the NPC's context. You might discard the response from this initial call or use a minimal prompt that elicits a short, neutral response.
-4.  **Generate Conversational Responses:** For subsequent interactions, call `GenerateResponseAsync` with *only the current player input* as the prompt (e.g., `"Can you tell me about the Rune of Binding?"`). You do not need to manually append the history; the model automatically uses the history stored within the active conversation context.
-5.  **Reset/Delete Contexts:** Use `ResetCurrentConversation()` (after switching to the NPC's context) or `DeleteConversation("NPC_UniqueID")` when appropriate (e.g., end of session, NPC despawns).
+In brief, Gemma.cpp keeps track of a number of `ConversationData` structs that each contain a KV cache and an absolute position (i.e. the point in the cache up to which tokens have been generated).
 
-This approach keeps each NPC's conversational memory separate and allows you to tailor their responses using targeted prompts within their dedicated context.
+```cpp
+// gemma.cpp - gemma/bindings/context.h
+struct ConversationData {
+  std::unique_ptr<KVCache> kv_cache;
+  size_t abs_pos = 0;
+
+  ConversationData(const ModelConfig& model_config, size_t prefill_tbatch_size);
+};
+```
+
+In this way, each `ConversationData` represents a conversation that the user is having with Gemma, with strict boundaries - what happens in conversation A, does not affect conversation B. By using the various conversation-related methods in Gemma.cpp, it is possible to switch between conversations appropriately, allowing one Gemma model instance to power multiple NPCs.
+
+Each conversation is stored in a key-value store, where the key is a string, and the value is a `ConversationData` struct. The base conversation is `"default"`.
+
+#### Example usage
+
+The user wants to talk to an NPC, "Elara Smith", with the unique string identifier `npc_elara`.
+
+```csharp
+// create conversation if it doesn't yet exist
+bool conversation_existed = gemma.HasConversation("npc_elara");
+if (!conversation_existed) {
+    gemma.CreateConversation("npc_elara");
+}
+
+// switch to the conversation
+gemma.SwitchConversation("npc_elara");
+
+// make sure that multiturn is on
+gemma.SetMultiturn(true);
+
+// prewarm the conversation by sending the NPC's biography as a turn
+if (!conversation_existed) {
+    var elara_bio = "Your name is Elara Smith, a wise old elf living in the Whispering Woods. You are knowledgeable about ancient runes but wary of strangers.";
+    gemma.Generate(elara_bio, 256); // we won't display the inference result, so keep maxLength short
+}
+
+// ready to talk to the NPC!
+```
+
+As Gemma is set up to operate in multiturn mode, when talking to the model the user should only send `the current user input` as the prompt (e.g., `"Can you tell me about the Rune of Binding?"`). It is not necessary to prepend the conversation history; the model automatically uses the history stored within the active conversation context's KV cache.
+
+### `GemmaManager`, a Unity `MonoBehaviour` that wraps `Gemma`
+
+`GemmaManager` is a convenience `MonoBehaviour` class that provides a high-level interface for interacting with Gemma within Unity.
+
+After the model has been loaded in `Start()`, use `GeneateResponseAsync()` to perform inference. This method takes a callback as one of its parameters, which uses **UniTask** for thread-safe use of Unity engine APIs (e.g. for updating text boxes and the like).
 
 ## API Reference - `GemmaManager`
 
@@ -76,23 +134,21 @@ The `GemmaManager` MonoBehaviour provides a high-level interface for interacting
 *   **`bool HasConversation(string conversationName)`**
     *   Checks if a conversation with the given name exists. Returns `true` if it exists.
 
-## `GemmaManagerSettings`
+### `GemmaManagerSettings`
 
 This ScriptableObject holds the configuration for the Gemma model used by `GemmaManager`.
 
 *   **Tokenizer Path:** Filesystem path to the Gemma tokenizer file (`tokenizer.spm`).
 *   **Weights Path:** Filesystem path to the Gemma model weights file (e.g., `.sbs` file).
-*   **Model Flag:** The model type string (e.g., "2b-it", "7b-it").
-*   **Weight Format:** The format of the weights file (e.g., `Sfp`, `Bf16`).
+*   **Model Flag:** The model type string (e.g., "gemma3-4b").
+*   **Weight Format:** The format of the weights file (e.g., `sfp`).
 *   **Temperature:** Sampling temperature for generation (e.g., 0.9).
 
 ---
 
-## Low-Level API - `GemmaInterop` (`GemmaCpp.Gemma`)
+## Low-Level API - `GemmaInterop.cs` (`GemmaCpp.Gemma`)
 
-This class provides direct C# bindings to the native `gemma.dll` functions. It's used internally by `GemmaManager` but can be used directly for more advanced scenarios.
-
-**Note:** When using `GemmaInterop` directly, you are responsible for managing threading and ensuring Unity API calls are made from the main thread if using callbacks.
+This class provides direct C# bindings to the native `gemma.dll` functions. It is used internally by `GemmaManager` but can be used directly for more advanced scenarios.
 
 **Constructor**
 
