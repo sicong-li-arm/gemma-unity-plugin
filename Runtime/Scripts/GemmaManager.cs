@@ -105,9 +105,18 @@ namespace GemmaCpp
                 Debug.LogError($"GemmaManager: Error initializing - {e.Message}\n{e.StackTrace}");
             }
         }
-
-        public async UniTask Prewarm(Dictionary<string, string> conversations)
+        public enum PrewarmState
         {
+            NotApplicable,
+            Pending,
+            InProgress,
+            Done
+        }
+        public delegate void PrewarmStatusCallback(string conversation, PrewarmState state);
+
+        public async UniTask Prewarm(Dictionary<string, string> conversations, PrewarmStatusCallback callback = null)
+        {
+
             // Using Time.time for elapsed game time, formatted to 3 decimal places (F3)
             string timestamp = $"[{Time.time:F3}]";
             Debug.Log($"GemmaManager::Prewarm(): {timestamp} Prewarm sequence started. Waiting for GemmaManager initialization...");
@@ -118,8 +127,6 @@ namespace GemmaCpp
                 Debug.Log($"GemmaManager::Prewarm(): {timestamp} Waiting for GemmaManager to initialize...");
                 await UniTask.Delay(TimeSpan.FromSeconds(1)); // Wait 1 second
             }
-
-            var extant = GetCurrentConversation();
 
             timestamp = $"[{Time.time:F3}]";
             Debug.Log($"GemmaManager::Prewarm(): {timestamp} GemmaManager initialized. Starting conversation prewarming.");
@@ -151,9 +158,20 @@ namespace GemmaCpp
                         this.SwitchConversation(conversationName);
                         if (!string.IsNullOrEmpty(initialPrompt))
                         {
-                             Debug.Log($"GemmaManager::Prewarm(): {timestamp} Generating initial response for {conversationName}...");
-                            await this.GenerateResponseAsync(initialPrompt);
-                             Debug.Log($"GemmaManager::Prewarm(): {timestamp} Initial response generated for {conversationName}.");
+                            Debug.Log($"GemmaManager::Prewarm(): {timestamp} Generating initial response for {conversationName}...");
+                            if (callback != null)
+                            {
+                                callback(conversationName, PrewarmState.InProgress);
+                            }
+                            await UniTask.RunOnThreadPool(() => {
+                                gemma.Generate(initialPrompt, 64);
+                                //GenerateResponseAsync(initialPrompt);
+                            });
+                            if (callback != null)
+                            {
+                                callback(conversationName, PrewarmState.Done);
+                            }
+                            Debug.Log($"GemmaManager::Prewarm(): {timestamp} Initial response generated for {conversationName}.");
                         }
                         else
                         {
@@ -175,7 +193,7 @@ namespace GemmaCpp
             timestamp = $"[{Time.time:F3}]";
             Debug.Log($"GemmaManager::Prewarm(): {timestamp} Prewarm finished processing {count} conversations.");
 
-            SwitchConversation(extant);
+            SwitchConversation("default");
         }
 
         public async UniTask<string> GenerateResponseAsync(string prompt, Gemma.TokenCallback onTokenReceived = null)

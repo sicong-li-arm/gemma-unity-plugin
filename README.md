@@ -107,9 +107,10 @@ The `GemmaManager` MonoBehaviour provides a high-level interface for interacting
 *   **Verbose Logging:** Enable detailed logging from both the C# wrapper and the underlying native library.
 
 **Methods**
-*   **`async UniTask Prewarm(Dictionary<string, string> conversations)`**
+*   **`async UniTask Prewarm(Dictionary<string, string> conversations, PrewarmStatusCallback statusCallback = null)`**
     *   Asynchronously prewarms specified conversation contexts before they are actively used.
     *   `conversations`: A dictionary where keys represent the unique names of the conversations to prewarm, and values represent the initial prompt to send to each respective conversation.
+    *   `statusCallback`: (Optional) A delegate of type `GemmaManager.PrewarmStatusCallback(string conversationName, PrewarmState state)` that can be provided to receive status updates during the prewarming process. The callback receives the name of the conversation being processed and its subsequent `PrewarmState` (e.g., Pending, InProgress, Done, Skipped, Failed).
     *   For each entry, it ensures the conversation exists (creates if not), switches to it, and generates an initial response using the provided prompt. This helps reduce latency on the first interaction.
 
 *   **`async UniTask<string> GenerateResponseAsync(string prompt, Gemma.TokenCallback onTokenReceived = null)`**
