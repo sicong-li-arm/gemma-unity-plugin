@@ -1,6 +1,6 @@
 {
     "name": "com.google.gemma.cpp",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "displayName": "Gemma.cpp for Unity",
     "description": "Unity integration for Gemma.cpp",
     "unity": "2022.3",

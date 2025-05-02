@@ -32,6 +32,8 @@ namespace GemmaCpp
         private Gemma gemma;
         private bool isInitialized;
 
+        public bool Initialized => isInitialized;
+
         private void Start()
         {
             Debug.Log("GemmaManager: Starting initialization");
@@ -110,14 +112,14 @@ namespace GemmaCpp
             string timestamp = $"[{Time.time:F3}]";
             Debug.Log($"GemmaManager::Prewarm(): {timestamp} Prewarm sequence started. Waiting for GemmaManager initialization...");
 
-            var extant = GetCurrentConversation();
-
             while (!isInitialized)
             {
                 timestamp = $"[{Time.time:F3}]";
                 Debug.Log($"GemmaManager::Prewarm(): {timestamp} Waiting for GemmaManager to initialize...");
                 await UniTask.Delay(TimeSpan.FromSeconds(1)); // Wait 1 second
             }
+
+            var extant = GetCurrentConversation();
 
             timestamp = $"[{Time.time:F3}]";
             Debug.Log($"GemmaManager::Prewarm(): {timestamp} GemmaManager initialized. Starting conversation prewarming.");
