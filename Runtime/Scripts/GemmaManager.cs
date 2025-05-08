@@ -56,14 +56,11 @@ namespace GemmaCpp
             try
             {
                 Debug.Log($"GemmaManager: Initializing with tokenizer: {settings.TokenizerPath}, weights: {settings.WeightsPath}");
-                Debug.Log($"GemmaManager: Using model flag: {settings.ModelFlag}, weight format: {settings.WeightFormat}");
                 Debug.Log($"GemmaManager: Using max tokens: {settings.MaxGeneratedTokens}");
 
                 gemma = new Gemma(
                     settings.TokenizerPath,
-                    settings.ModelFlag,
                     settings.WeightsPath,
-                    settings.WeightFormat.ToString(),
                     settings.MaxGeneratedTokens
                 );
                 gemma.EnableLogging(verboseLogging);
@@ -165,6 +162,7 @@ namespace GemmaCpp
                             }
                             await UniTask.RunOnThreadPool(() => {
                                 gemma.Generate(initialPrompt, 64);
+                                gemma.SaveConversation();
                                 //GenerateResponseAsync(initialPrompt);
                             });
                             if (callback != null)
