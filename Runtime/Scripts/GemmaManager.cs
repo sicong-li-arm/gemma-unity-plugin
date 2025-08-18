@@ -16,8 +16,11 @@
 using UnityEngine;
 using System;
 using System.Collections.Generic; // Added for Dictionary
+using System.Collections; // Added for Dictionary
 using System.Text;             // Added for StringBuilder
 using Cysharp.Threading.Tasks;
+using System.IO;
+using UnityEngine.Networking;
 
 namespace GemmaCpp
 {
@@ -29,7 +32,7 @@ namespace GemmaCpp
         [SerializeField]
         private bool verboseLogging = false;
 
-        private Gemma gemma;
+        public Gemma gemma; // TODO: change to private. Need to expose methods like CountTokens
         private bool isInitialized;
 
         public bool Initialized => isInitialized;
@@ -37,8 +40,31 @@ namespace GemmaCpp
         private void Start()
         {
             Debug.Log("GemmaManager: Starting initialization");
+#if UNITY_ANDROID
+            // if (!PlayerPrefs.HasKey("ModelCopiedToAndroid"))
+            // {
+                StartCoroutine(CopyFilesToAndroidAndInit());
+            // }
+            // else
+            // {
+#endif
+                // InitializeGemma();
+#if UNITY_ANDROID
+            // }
+#endif
+        }
+
+#if UNITY_ANDROID
+        IEnumerator CopyFilesToAndroidAndInit()
+        {
+            Debug.Log("Copying files to Android");
+            yield return ModelLoader.CopyFile(settings.TokenizerPath, settings.AndroidTokenizerPath);
+            yield return ModelLoader.CopyFile(settings.WeightsPath, settings.AndroidWeightsPath);
+            PlayerPrefs.SetInt("ModelCopiedToAndroid", 1);
+            PlayerPrefs.Save();
             InitializeGemma();
         }
+#endif
 
         private void OnDestroy()
         {
@@ -58,13 +84,28 @@ namespace GemmaCpp
                 Debug.Log($"GemmaManager: Initializing with tokenizer: {settings.TokenizerPath}, weights: {settings.WeightsPath}");
                 Debug.Log($"GemmaManager: Using max tokens: {settings.MaxGeneratedTokens}");
 
+                UnityEngine.Debug.Log("About to initialize gemma");
+#if UNITY_ANDROID
                 gemma = new Gemma(
-                    settings.TokenizerPath,
-                    settings.WeightsPath,
+                    settings.AndroidTokenizerPath,
+                    settings.ModelFlag.ToLower(),
+                    settings.AndroidWeightsPath,
+                    settings.WeightFormat.ToString().ToLower(),
                     settings.MaxGeneratedTokens
                 );
+#else
+                gemma = new Gemma(
+                    settings.TokenizerPath,
+                    settings.ModelFlag.ToLower(),
+                    settings.WeightsPath,
+                    settings.WeightFormat.ToString().ToLower(),
+                    settings.MaxGeneratedTokens
+                );
+#endif
+                Debug.Log($"GemmaManager: Using flag: {settings.MaxGeneratedTokens}");
                 gemma.EnableLogging(verboseLogging);
                 isInitialized = true;
+                Debug.Log($"Is initialized");
 
                 verboseLogging = true;
 
@@ -99,6 +140,9 @@ namespace GemmaCpp
             }
             catch (Exception e)
             {
+                Debug.LogError("Error!");
+                Debug.LogError(e.Message);
+                Debug.LogError(e.StackTrace);
                 Debug.LogError($"GemmaManager: Error initializing - {e.Message}\n{e.StackTrace}");
             }
         }
@@ -160,7 +204,8 @@ namespace GemmaCpp
                             {
                                 callback(conversationName, PrewarmState.InProgress);
                             }
-                            await UniTask.RunOnThreadPool(() => {
+                            await UniTask.RunOnThreadPool(() =>
+                            {
                                 gemma.Generate(initialPrompt, 64);
                                 gemma.SaveConversation();
                                 //GenerateResponseAsync(initialPrompt);
@@ -173,7 +218,7 @@ namespace GemmaCpp
                         }
                         else
                         {
-                             Debug.Log($"GemmaManager::Prewarm(): {timestamp} No initial prompt provided for {conversationName}, skipping generation.");
+                            Debug.Log($"GemmaManager::Prewarm(): {timestamp} No initial prompt provided for {conversationName}, skipping generation.");
                         }
                     }
                     catch (Exception ex)
@@ -508,7 +553,7 @@ namespace GemmaCpp
             try
             {
                 bool result = gemma.SwitchConversation(conversationName);
-                 if (verboseLogging) Debug.Log($"GemmaManager: Switch to conversation '{conversationName}' result: {result}");
+                if (verboseLogging) Debug.Log($"GemmaManager: Switch to conversation '{conversationName}' result: {result}");
                 return result;
             }
             catch (Exception e)
@@ -530,7 +575,7 @@ namespace GemmaCpp
                 Debug.LogError("GemmaManager: Cannot delete conversation - not initialized");
                 throw new InvalidOperationException("Gemma is not initialized");
             }
-             if (string.IsNullOrEmpty(conversationName))
+            if (string.IsNullOrEmpty(conversationName))
             {
                 Debug.LogError("GemmaManager: Conversation name cannot be null or empty.");
                 return false;
@@ -539,7 +584,7 @@ namespace GemmaCpp
             try
             {
                 bool result = gemma.DeleteConversation(conversationName);
-                 if (verboseLogging) Debug.Log($"GemmaManager: Delete conversation '{conversationName}' result: {result}");
+                if (verboseLogging) Debug.Log($"GemmaManager: Delete conversation '{conversationName}' result: {result}");
                 return result;
             }
             catch (Exception e)
@@ -561,7 +606,7 @@ namespace GemmaCpp
                 Debug.LogError("GemmaManager: Cannot check conversation - not initialized");
                 throw new InvalidOperationException("Gemma is not initialized");
             }
-             if (string.IsNullOrEmpty(conversationName))
+            if (string.IsNullOrEmpty(conversationName))
             {
                 Debug.LogError("GemmaManager: Conversation name cannot be null or empty.");
                 return false;
@@ -570,7 +615,7 @@ namespace GemmaCpp
             try
             {
                 bool result = gemma.HasConversation(conversationName);
-                 if (verboseLogging) Debug.Log($"GemmaManager: Has conversation '{conversationName}' result: {result}");
+                if (verboseLogging) Debug.Log($"GemmaManager: Has conversation '{conversationName}' result: {result}");
                 return result;
             }
             catch (Exception e)
@@ -621,4 +666,32 @@ namespace GemmaCpp
             return text.Substring(0, maxLength) + "...";
         }
     }
+    public class ModelLoader : MonoBehaviour
+    {
+        public static IEnumerator CopyFile(string sourcePath, string targetPath)
+        {
+            Debug.Log($"Copying {sourcePath} to {targetPath}");
+            UnityWebRequest uwr = UnityWebRequest.Get(sourcePath);
+            yield return uwr.SendWebRequest();
+
+            if (uwr.result != UnityWebRequest.Result.Success)
+            {
+                Debug.LogError($"Failed to load {sourcePath}: {uwr.error}");
+            }
+            else
+            {
+                string directory = Path.GetDirectoryName(targetPath);
+                if (!string.IsNullOrEmpty(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+                File.WriteAllBytes(targetPath, uwr.downloadHandler.data);
+                Debug.Log($"Copied {sourcePath} to {targetPath}");
+            }
+        }
+    }
+
+
+
 }
+

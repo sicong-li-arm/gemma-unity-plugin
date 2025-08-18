@@ -17,6 +17,7 @@ using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
+using Unity.VisualScripting.Antlr3.Runtime;
 namespace GemmaCpp
 {
     public class GemmaException : Exception
@@ -29,6 +30,8 @@ namespace GemmaCpp
         private IntPtr _context;
         private bool _disposed;
 
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+        // TODO: Implement library path setting for other platforms
         // Optional: Allow setting DLL path
         public static string DllPath { get; set; } = "gemma.dll";
 
@@ -43,11 +46,14 @@ namespace GemmaCpp
                 throw new DllNotFoundException($"Failed to load {DllPath}. Error: {Marshal.GetLastWin32Error()}");
             }
         }
+#endif
 
         [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr GemmaCreate(
             [MarshalAs(UnmanagedType.LPUTF8Str)] string tokenizerPath,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string modelType,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string weightsPath,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string weightType,
             int maxGeneratedTokens);
 
         [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
@@ -58,11 +64,33 @@ namespace GemmaCpp
 
         // Keep delegate alive for duration of calls
         private GCHandle _callbackHandle;
+        // Keep token callback state alive for duration of calls
+        private GCHandle _tokenCallbackStateHandle;
+        private TokenCallbackState _tokenCallbackState;
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate bool GemmaTokenCallback(
             [MarshalAs(UnmanagedType.LPUTF8Str)] string text,
             IntPtr userData);
+
+        private class TokenCallbackState
+        {
+            public TokenCallback userCallback;
+            public int tokenCount;
+        }
+
+        private static GemmaTokenCallback _nativeCallback;
+
+
+        [AOT.MonoPInvokeCallback(typeof(GemmaTokenCallback))]
+        private static bool StaticTokenCallback(string text, IntPtr userData)
+        {
+            var handle = (GCHandle)userData;
+            var state = (TokenCallbackState)handle.Target;
+            state.tokenCount++;
+            // Debug.WriteLine($"Token {state.tokenCount}: '{text}'");
+            return state.userCallback?.Invoke(text) ?? false;
+        }
 
         [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
         private static extern int GemmaGenerate(
@@ -146,6 +174,15 @@ namespace GemmaCpp
             [MarshalAs(UnmanagedType.LPUTF8Str)] string message,
             IntPtr userData);
 
+        public static class GemmaLogging
+        {
+            [AOT.MonoPInvokeCallback(typeof(GemmaLogCallback))]
+            public static void LogCallback(string msg, IntPtr userData)
+            {
+                Debug.WriteLine($"Gemma log: {msg}");
+            }
+        }
+
         [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
         private static extern void GemmaSetLogCallback(
             IntPtr context,
@@ -155,11 +192,23 @@ namespace GemmaCpp
         private GCHandle _logCallbackHandle;
         private bool _loggingEnabled = false;
 
-        public Gemma(string tokenizerPath, string weightsPath, int maxGeneratedTokens = 8192)
+        public Gemma(string tokenizerPath, string modelType, string weightsPath, string weightsType, int maxGeneratedTokens = 8192)
         {
-            _context = GemmaCreate(tokenizerPath, weightsPath, maxGeneratedTokens);
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+            UnityEngine.Debug.Log("Running on Windows");
+#elif UNITY_STANDALONE_LINUX || UNITY_EDITOR_LINUX
+            UnityEngine.Debug.Log("Running on Linux");
+#elif UNITY_ANDROID
+            UnityEngine.Debug.Log("Running on Android");
+#else
+            UnityEngine.Debug.LogError("Unsupported OS");
+#endif
+            UnityEngine.Debug.Log($"Initializing gemma. tokenizerPath: {tokenizerPath}, modelType: {modelType}, weightsPath: {weightsPath}, weightsType: {weightsType}, maxGeneratedTokens: {maxGeneratedTokens}");
+            _context = GemmaCreate(tokenizerPath, modelType, weightsPath, weightsType, maxGeneratedTokens);
+            UnityEngine.Debug.Log("Initialized gemma");
             if (_context == IntPtr.Zero)
             {
+                UnityEngine.Debug.LogError("Failed o crate gemma context");
                 throw new GemmaException("Failed to create Gemma context");
             }
         }
@@ -174,7 +223,7 @@ namespace GemmaCpp
                     Debug.WriteLine($"Gemma: {message}");
                 };
                 _logCallbackHandle = GCHandle.Alloc(logCallback);
-                GemmaSetLogCallback(_context, logCallback, IntPtr.Zero);
+                GemmaSetLogCallback(_context, GemmaLogging.LogCallback, IntPtr.Zero);
                 _loggingEnabled = true;
             }
             else if (!enable && _loggingEnabled)
@@ -337,6 +386,16 @@ namespace GemmaCpp
             return count;
         }
 
+        public void SetPrefillTBatchSize(int batchSize)
+        {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(Gemma));
+
+            if (_context == IntPtr.Zero)
+                throw new GemmaException("Gemma context is invalid");
+            GemmaSetPrefillTbatchSize(_context, batchSize);
+        }
+
         public string Generate(string prompt, int maxOutputChars = 4096)
         {
             return Generate(prompt, null, maxOutputChars);
@@ -351,34 +410,28 @@ namespace GemmaCpp
                 throw new GemmaException("Gemma context is invalid");
 
             var outputBuffer = new byte[maxOutputChars * 4];  // Allow for worst case UTF-8 size
-            GemmaTokenCallback nativeCallback = null;
 
             // Track token count for debugging
-            int tokenCount = 0;
-
             if (callback != null)
             {
-                nativeCallback = (text, _) =>
+                _tokenCallbackState = new TokenCallbackState
                 {
-                    tokenCount++;
-                    // Log token for debugging
-                    Debug.WriteLine($"Token {tokenCount}: '{text}'");
-
-                    // Pass token to user callback
-                    return callback(text);
+                    userCallback = callback,
+                    tokenCount = 0
                 };
-                _callbackHandle = GCHandle.Alloc(nativeCallback);
+                _nativeCallback = StaticTokenCallback;
+                _tokenCallbackStateHandle = GCHandle.Alloc(_tokenCallbackState);
             }
 
             try
             {
                 int length = GemmaGenerate(_context, prompt, outputBuffer, maxOutputChars,
-                    nativeCallback, IntPtr.Zero);
+                    _nativeCallback, GCHandle.ToIntPtr(_tokenCallbackStateHandle));
 
                 if (length < 0)
                     throw new GemmaException("Generation failed");
 
-                Debug.WriteLine($"Generation complete: {tokenCount} tokens processed, result length: {length}");
+                Debug.WriteLine($"Generation complete: {_tokenCallbackState.tokenCount} tokens generated, result length: {length}");
 
                 // Convert the byte buffer to a string using UTF-8 encoding
                 string result = Encoding.UTF8.GetString(outputBuffer, 0, length);
@@ -386,8 +439,8 @@ namespace GemmaCpp
             }
             finally
             {
-                if (_callbackHandle.IsAllocated)
-                    _callbackHandle.Free();
+                if (_tokenCallbackStateHandle.IsAllocated)
+                    _tokenCallbackStateHandle.Free();
             }
         }
 

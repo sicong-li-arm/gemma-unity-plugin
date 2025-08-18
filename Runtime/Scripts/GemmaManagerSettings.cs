@@ -55,11 +55,17 @@ namespace GemmaCpp
         private float topP = 0.9f;
 
         // Properties
+        public GemmaModelType ModelType => modelType;
         public string ModelFlag => modelFlag;
         public GemmaWeightFormat WeightFormat => weightFormat;
         public string ModelPath => Path.Combine(Application.streamingAssetsPath, modelFolder);
         public string TokenizerPath => Path.Combine(ModelPath, tokenizerFileName);
         public string WeightsPath => Path.Combine(ModelPath, weightsFileName);
+#if UNITY_ANDROID
+        public string AndroidModelPath => Path.Combine(Application.persistentDataPath, modelFolder);
+        public string AndroidTokenizerPath => Path.Combine(AndroidModelPath, tokenizerFileName);
+        public string AndroidWeightsPath => Path.Combine(AndroidModelPath, weightsFileName);
+#endif
         public int MaxGeneratedTokens => maxGeneratedTokens;
         public float Temperature => temperature;
         public float TopP => topP;
