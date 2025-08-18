@@ -1,7 +1,7 @@
 {
     "name": "com.google.gemma.cpp",
     "version": "1.0.5",
-    "displayName": "Gemma.cpp for Unity",
+    "displayName": "Gemma.cpp for Unity (Temp)",
     "description": "Unity integration for Gemma.cpp",
     "unity": "2022.3",
     "dependencies": {
@@ -13,7 +13,7 @@
         "ai"
     ],
     "author": {
-        "name": "Google",
-        "url": "https://github.com/google/gemma-cpp-unity-plugin"
+        "name": "Google (Temp-S)",
+	"url": "https://github.com/sicong-li-arm/gemma-unity-plugin"
     }
 }
