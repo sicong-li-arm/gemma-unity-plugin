@@ -54,7 +54,7 @@ namespace GemmaCpp
             [MarshalAs(UnmanagedType.LPUTF8Str)] string modelType,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string weightsPath,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string weightType,
-            int maxGeneratedTokens);
+            int maxGeneratedTokens, int maxThreads);
 
         [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
         private static extern void GemmaDestroy(IntPtr context);
@@ -194,7 +194,7 @@ namespace GemmaCpp
         private GCHandle _logCallbackHandle;
         private bool _loggingEnabled = false;
 
-        public Gemma(string tokenizerPath, string modelType, string weightsPath, string weightsType, int maxGeneratedTokens = 8192)
+        public Gemma(string tokenizerPath, string modelType, string weightsPath, string weightsType, int maxGeneratedTokens = 8192, int maxThreads = 0)
         {
 #if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
             UnityEngine.Debug.Log("Running on Windows");
@@ -206,7 +206,7 @@ namespace GemmaCpp
             UnityEngine.Debug.LogError("Unsupported OS");
 #endif
             UnityEngine.Debug.Log($"Initializing gemma. tokenizerPath: {tokenizerPath}, modelType: {modelType}, weightsPath: {weightsPath}, weightsType: {weightsType}, maxGeneratedTokens: {maxGeneratedTokens}");
-            _context = GemmaCreate(tokenizerPath, modelType, weightsPath, weightsType, maxGeneratedTokens);
+            _context = GemmaCreate(tokenizerPath, modelType, weightsPath, weightsType, maxGeneratedTokens, maxThreads);
             UnityEngine.Debug.Log("Initialized gemma");
             if (_context == IntPtr.Zero)
             {
